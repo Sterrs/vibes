@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NESO Data Explorer</title>
+
+  <!-- CodeMirror -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #0b0f1a;
+      --surface:     #131827;
+      --card:        #1a2035;
+      --border:      #2a3555;
+      --border-dim:  #1e2a44;
+      --green:       #2ecc71;
+      --green-dim:   #27ae60;
+      --green-glow:  rgba(46, 204, 113, 0.18);
+      --teal:        #1abc9c;
+      --amber:       #f0a500;
+      --red:         #e74c3c;
+      --text:        #dce8ff;
+      --text-muted:  #6b80a8;
+      --text-dim:    #3d5080;
+      --param-color: #f0a500;
+      --font-mono:   "JetBrains Mono", "Fira Code", "Cascadia Code", Menlo, monospace;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── Header ───────────────────────────────────── */
+    .app-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.9rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .app-logo {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #2ecc71 0%, #1abc9c 100%);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+      box-shadow: 0 0 18px rgba(46,204,113,0.35);
+    }
+
+    .app-title-group { flex: 1; min-width: 0; }
+
+    .app-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      line-height: 1.2;
+    }
+
+    .app-subtitle {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    .app-subtitle a {
+      color: var(--teal);
+      text-decoration: none;
+    }
+    .app-subtitle a:hover { text-decoration: underline; }
+
+    .back-link {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 0.35rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      transition: border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .back-link:hover { border-color: var(--green); color: var(--green); }
+
+    /* ─── Layout ────────────────────────────────────── */
+    .layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* ─── Sidebar ────────────────────────────────────── */
+    .sidebar {
+      width: 310px;
+      min-width: 220px;
+      max-width: 420px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .sidebar-header {
+      padding: 1rem 1.1rem 0.7rem;
+      border-bottom: 1px solid var(--border-dim);
+    }
+
+    .sidebar-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .sidebar-hint {
+      font-size: 0.76rem;
+      color: var(--text-dim);
+      line-height: 1.55;
+    }
+
+    .sidebar-hint a { color: var(--teal); text-decoration: none; }
+    .sidebar-hint a:hover { text-decoration: underline; }
+
+    .param-badge {
+      display: inline;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      background: rgba(240,165,0,0.15);
+      color: var(--amber);
+      border: 1px solid rgba(240,165,0,0.3);
+      border-radius: 3px;
+      padding: 0 3px;
+    }
+
+    .resources-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.6rem 0;
+    }
+
+    .resources-list::-webkit-scrollbar { width: 5px; }
+    .resources-list::-webkit-scrollbar-track { background: transparent; }
+    .resources-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .resource-item {
+      padding: 0.55rem 1.1rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      border-bottom: 1px solid var(--border-dim);
+      transition: background 0.12s;
+    }
+    .resource-item:hover { background: rgba(46,204,113,0.04); }
+
+    .resource-info { flex: 1; min-width: 0; }
+
+    .resource-name {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--amber);
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .resource-guid {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      margin-top: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .resource-desc {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+      line-height: 1.4;
+    }
+
+    .resource-actions { display: flex; gap: 0.3rem; flex-shrink: 0; padding-top: 2px; }
+
+    .btn-icon {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-dim);
+      font-size: 0.75rem;
+      padding: 2px 5px;
+      border-radius: 4px;
+      transition: color 0.12s, background 0.12s;
+    }
+    .btn-icon:hover { color: var(--text); background: var(--border); }
+    .btn-icon.delete:hover { color: var(--red); background: rgba(231,76,60,0.1); }
+    .btn-icon.insert:hover { color: var(--green); background: var(--green-glow); }
+
+    .add-resource {
+      padding: 0.8rem 1.1rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .add-resource-title {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      margin-bottom: 0.1rem;
+    }
+
+    .add-row { display: flex; gap: 0.4rem; }
+
+    .input-field {
+      flex: 1;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.4rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-family: inherit;
+      transition: border-color 0.15s;
+      min-width: 0;
+    }
+    .input-field:focus { outline: none; border-color: var(--green); }
+    .input-field::placeholder { color: var(--text-dim); }
+
+    .input-field.mono { font-family: var(--font-mono); font-size: 0.72rem; }
+
+    .btn-add {
+      background: var(--green-dim);
+      border: none;
+      color: #fff;
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-add:hover { background: var(--green); }
+
+    /* ─── Main ───────────────────────────────────────── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .editor-section {
+      padding: 1.1rem 1.3rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .editor-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 0.55rem;
+    }
+
+    /* CodeMirror overrides */
+    .CodeMirror {
+      font-family: var(--font-mono) !important;
+      font-size: 0.88rem !important;
+      line-height: 1.65 !important;
+      background: var(--card) !important;
+      color: var(--text) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 8px !important;
+      height: auto !important;
+      min-height: 120px !important;
+      max-height: 320px !important;
+    }
+
+    .CodeMirror-scroll {
+      min-height: 120px;
+      max-height: 320px;
+    }
+
+    .CodeMirror-focused { border-color: var(--green) !important; }
+
+    .CodeMirror-cursor { border-left-color: var(--green) !important; }
+
+    /* Highlight {{param}} tokens */
+    .cm-neso-param {
+      color: var(--amber) !important;
+      font-weight: 700;
+      background: rgba(240, 165, 0, 0.12);
+      border-radius: 3px;
+      padding: 0 2px;
+    }
+
+    /* CodeMirror dracula overrides to match our palette */
+    .cm-s-dracula .CodeMirror-gutters {
+      background: var(--card) !important;
+      border-right-color: var(--border-dim) !important;
+    }
+
+    .editor-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .btn-run {
+      background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+      border: none;
+      color: #fff;
+      padding: 0.55rem 1.3rem;
+      border-radius: 7px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      transition: opacity 0.15s, transform 0.1s;
+      letter-spacing: 0.01em;
+      box-shadow: 0 2px 12px rgba(46,204,113,0.3);
+    }
+    .btn-run:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-run:active { transform: translateY(0); }
+    .btn-run:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+    .btn-run .run-icon { font-size: 0.9rem; }
+
+    .btn-clear {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 0.5rem 0.9rem;
+      border-radius: 7px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-clear:hover { border-color: var(--text-muted); color: var(--text); }
+
+    .status {
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-left: auto;
+    }
+
+    .status.loading { color: var(--teal); }
+    .status.error   { color: var(--red); }
+    .status.success { color: var(--green); }
+    .status.idle    { color: var(--text-dim); }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(26,188,156,0.3);
+      border-top-color: var(--teal);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Results ─────────────────────────────────────── */
+    .results-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .results-section.hidden { display: none; }
+
+    .results-toolbar {
+      padding: 0.75rem 1.3rem;
+      border-bottom: 1px solid var(--border-dim);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: var(--surface);
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .results-count {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .results-count strong { color: var(--green); }
+
+    .filter-input {
+      flex: 1;
+      min-width: 160px;
+      max-width: 340px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.38rem 0.7rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      transition: border-color 0.15s;
+    }
+    .filter-input:focus { outline: none; border-color: var(--green); }
+    .filter-input::placeholder { color: var(--text-dim); }
+
+    .btn-csv {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 0.38rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+      margin-left: auto;
+    }
+    .btn-csv:hover { border-color: var(--teal); color: var(--teal); }
+
+    .table-wrap {
+      flex: 1;
+      overflow: auto;
+    }
+
+    .table-wrap::-webkit-scrollbar { width: 7px; height: 7px; }
+    .table-wrap::-webkit-scrollbar-track { background: transparent; }
+    .table-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .table-wrap::-webkit-scrollbar-corner { background: transparent; }
+
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+    }
+
+    .results-table thead {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .results-table th {
+      background: var(--card);
+      color: var(--text-muted);
+      font-weight: 700;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 0.6rem 0.9rem;
+      text-align: left;
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.12s, color 0.12s;
+    }
+
+    .results-table th:hover { background: var(--surface); color: var(--text); }
+    .results-table th.sort-asc  { color: var(--green); }
+    .results-table th.sort-desc { color: var(--green); }
+
+    .sort-arrow {
+      display: inline-block;
+      margin-left: 5px;
+      opacity: 0.4;
+      font-size: 0.65rem;
+    }
+    .sort-asc  .sort-arrow { opacity: 1; }
+    .sort-desc .sort-arrow { opacity: 1; }
+
+    .results-table td {
+      padding: 0.5rem 0.9rem;
+      border-bottom: 1px solid var(--border-dim);
+      color: var(--text);
+      max-width: 380px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      vertical-align: top;
+    }
+
+    .results-table tr:hover td { background: rgba(46,204,113,0.04); }
+
+    .results-table td.null-val { color: var(--text-dim); font-style: italic; }
+    .results-table td.num-val  { color: var(--teal); text-align: right; }
+    .results-table td.num-val  { text-align: right; }
+
+    .results-table th.num-col  { text-align: right; }
+
+    .no-results {
+      text-align: center;
+      padding: 3rem 2rem;
+      color: var(--text-dim);
+      font-family: inherit;
+      font-size: 0.88rem;
+    }
+
+    /* ─── Error box ──────────────────────────────────── */
+    .error-box {
+      margin: 1.2rem 1.3rem;
+      background: rgba(231,76,60,0.08);
+      border: 1px solid rgba(231,76,60,0.3);
+      border-radius: 8px;
+      padding: 0.9rem 1.1rem;
+      font-size: 0.82rem;
+      color: #e57373;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      font-family: var(--font-mono);
+    }
+
+    .error-box.hidden { display: none; }
+
+    /* ─── Welcome ────────────────────────────────────── */
+    .welcome {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3rem 2rem;
+      text-align: center;
+      color: var(--text-dim);
+    }
+
+    .welcome.hidden { display: none; }
+
+    .welcome-icon { font-size: 2.8rem; margin-bottom: 1rem; }
+    .welcome h3 { font-size: 1rem; color: var(--text-muted); font-weight: 600; margin-bottom: 0.5rem; }
+    .welcome p  { font-size: 0.82rem; max-width: 340px; line-height: 1.6; }
+
+    /* ─── Responsive ─────────────────────────────────── */
+    @media (max-width: 700px) {
+      .layout { flex-direction: column; overflow: auto; }
+      .sidebar { width: 100%; max-width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: 320px; }
+      .main { overflow: visible; }
+      .results-section { min-height: 400px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-logo">⚡</div>
+  <div class="app-title-group">
+    <div class="app-title">NESO Data Explorer</div>
+    <div class="app-subtitle">
+      Community SQL tool for <a href="https://api.neso.energy" target="_blank" rel="noopener">api.neso.energy</a>
+      &nbsp;·&nbsp; Not affiliated with NESO
+    </div>
+  </div>
+  <a class="back-link" href="../">← All Vibes</a>
+</header>
+
+<div class="layout">
+
+  <!-- ── Sidebar: Resource ID library ── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">Resource Library</div>
+      <p class="sidebar-hint">
+        Reference datasets by name in your SQL using
+        <span class="param-badge">{{name}}</span>.
+        Find IDs on the
+        <a href="https://api.neso.energy" target="_blank" rel="noopener">NESO data portal</a>.
+      </p>
+    </div>
+
+    <div class="resources-list" id="resources-list">
+      <!-- populated by JS -->
+    </div>
+
+    <div class="add-resource">
+      <div class="add-resource-title">Add Dataset</div>
+      <div class="add-row">
+        <input class="input-field" id="new-name" placeholder="alias name" maxlength="64"
+               onkeydown="if(event.key==='Enter')addResource()" />
+      </div>
+      <div class="add-row">
+        <input class="input-field mono" id="new-guid" placeholder="resource-guid (UUID)"
+               onkeydown="if(event.key==='Enter')addResource()" />
+        <button class="btn-add" onclick="addResource()">Add</button>
+      </div>
+      <div class="add-row">
+        <input class="input-field" id="new-desc" placeholder="description (optional)"
+               onkeydown="if(event.key==='Enter')addResource()" />
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main: Editor + Results ── -->
+  <div class="main">
+
+    <div class="editor-section">
+      <div class="editor-label">SQL Query</div>
+      <textarea id="sql-editor">SELECT * FROM "{{carbon_intensity_half_hourly}}" LIMIT 20</textarea>
+      <div class="editor-toolbar">
+        <button class="btn-run" id="run-btn" onclick="runQuery()">
+          <span class="run-icon">▶</span> Run Query
+        </button>
+        <button class="btn-clear" onclick="clearResults()">Clear</button>
+        <div class="status idle" id="status"></div>
+      </div>
+    </div>
+
+    <div class="error-box hidden" id="error-box"></div>
+
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon">⚡</div>
+      <h3>Ready to explore</h3>
+      <p>
+        Write a SQL query above, using <span class="param-badge">{{name}}</span> to reference
+        datasets from the library. Press <strong>Run Query</strong> to fetch results
+        from the NESO open data API.
+      </p>
+    </div>
+
+    <div class="results-section hidden" id="results-section">
+      <div class="results-toolbar">
+        <span class="results-count" id="results-count"></span>
+        <input class="filter-input" id="filter-input" placeholder="Filter all columns…"
+               oninput="applyFilter()" />
+        <button class="btn-csv" onclick="downloadCSV()">↓ CSV</button>
+      </div>
+      <div class="table-wrap">
+        <table class="results-table" id="results-table">
+          <thead id="results-thead"></thead>
+          <tbody id="results-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- CodeMirror -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/overlay.min.js"></script>
+
+<script>
+/* ─── Default resources ─────────────────────────────────────────────────── */
+const DEFAULT_RESOURCES = [
+  {
+    name: "carbon_intensity_half_hourly",
+    guid: "596f29ac-0387-4ba4-a6d3-95c243140707",
+    desc: "Carbon intensity (half-hourly)"
+  },
+  {
+    name: "bmrs_generation_by_fuel",
+    guid: "0ff4c470-e348-4e46-bfe6-6e4a7a985729",
+    desc: "Generation by fuel type (BMRS)"
+  },
+  {
+    name: "forecast_demand",
+    guid: "7c7b6b71-d4af-4c7a-b5b0-3e1e1d2cf36d",
+    desc: "National demand forecast"
+  },
+];
+
+const STORAGE_KEY = "neso_explorer_resources";
+
+/* ─── Resource state ────────────────────────────────────────────────────── */
+function loadResources() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch (_) {}
+  return DEFAULT_RESOURCES.map(r => ({ ...r }));
+}
+
+function saveResources(resources) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(resources)); } catch (_) {}
+}
+
+let resources = loadResources();
+
+/* ─── Render resource list ──────────────────────────────────────────────── */
+function renderResources() {
+  const list = document.getElementById("resources-list");
+  if (resources.length === 0) {
+    list.innerHTML = `<div style="padding:1rem 1.1rem; font-size:0.78rem; color:var(--text-dim)">
+      No datasets yet — add one below.
+    </div>`;
+    return;
+  }
+  list.innerHTML = resources.map((r, i) => `
+    <div class="resource-item">
+      <div class="resource-info">
+        <div class="resource-name">{{${r.name}}}</div>
+        <div class="resource-guid">${escHtml(r.guid)}</div>
+        ${r.desc ? `<div class="resource-desc">${escHtml(r.desc)}</div>` : ""}
+      </div>
+      <div class="resource-actions">
+        <button class="btn-icon insert" title="Insert into editor"
+                onclick="insertParam(${i})">⎆</button>
+        <button class="btn-icon delete" title="Remove"
+                onclick="removeResource(${i})">✕</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function insertParam(i) {
+  const r = resources[i];
+  const cursor = editor.getCursor();
+  editor.replaceRange(`"{{${r.name}}}"`, cursor);
+  editor.focus();
+}
+
+function addResource() {
+  const nameEl = document.getElementById("new-name");
+  const guidEl = document.getElementById("new-guid");
+  const descEl = document.getElementById("new-desc");
+
+  const name = nameEl.value.trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "");
+  const guid = guidEl.value.trim();
+  const desc = descEl.value.trim();
+
+  if (!name) { nameEl.focus(); nameEl.style.borderColor = "var(--red)"; return; }
+  if (!isValidGuid(guid)) { guidEl.focus(); guidEl.style.borderColor = "var(--red)"; return; }
+
+  nameEl.style.borderColor = "";
+  guidEl.style.borderColor = "";
+
+  resources.push({ name, guid, desc });
+  saveResources(resources);
+  renderResources();
+
+  nameEl.value = "";
+  guidEl.value = "";
+  descEl.value = "";
+}
+
+function removeResource(i) {
+  resources.splice(i, 1);
+  saveResources(resources);
+  renderResources();
+}
+
+function isValidGuid(s) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+}
+
+/* ─── CodeMirror setup ──────────────────────────────────────────────────── */
+// Overlay mode to highlight {{param}} tokens
+CodeMirror.defineMode("sql-neso-params", function(config) {
+  const base = CodeMirror.getMode(config, { name: "sql", client: {}, keywords: {} });
+  const overlay = {
+    token: function(stream) {
+      if (stream.match(/\{\{[^}]*\}\}/)) return "neso-param";
+      while (stream.next() != null) {
+        if (stream.match(/\{\{/, false)) break;
+      }
+      return null;
+    }
+  };
+  return CodeMirror.overlayMode(base, overlay);
+});
+
+const editor = CodeMirror.fromTextArea(document.getElementById("sql-editor"), {
+  mode: "sql-neso-params",
+  theme: "dracula",
+  lineNumbers: true,
+  lineWrapping: true,
+  indentWithTabs: false,
+  tabSize: 2,
+  extraKeys: {
+    "Ctrl-Enter": runQuery,
+    "Cmd-Enter":  runQuery,
+  }
+});
+
+/* ─── Query execution ───────────────────────────────────────────────────── */
+const API_BASE = "https://api.neso.energy/api/3/action/datastore_search_sql";
+
+let allRows = [];
+let fields  = [];
+let sortCol = null;
+let sortDir = "asc";
+
+function buildSql() {
+  let sql = editor.getValue();
+  for (const r of resources) {
+    sql = sql.replaceAll(`{{${r.name}}}`, r.guid);
+  }
+  // Check for unreplaced params
+  const missing = [...sql.matchAll(/\{\{([^}]+)\}\}/g)].map(m => m[1]);
+  if (missing.length) throw new Error(`Unknown parameters: ${missing.map(n => `{{${n}}}`).join(", ")}`);
+  return sql;
+}
+
+async function runQuery() {
+  const btn = document.getElementById("run-btn");
+  const statusEl = document.getElementById("status");
+  const errorBox = document.getElementById("error-box");
+
+  let sql;
+  try {
+    sql = buildSql();
+  } catch (e) {
+    showError(e.message);
+    return;
+  }
+
+  btn.disabled = true;
+  errorBox.classList.add("hidden");
+  setStatus("loading", "Querying…");
+  hideResults();
+
+  const url = `${API_BASE}?sql=${encodeURIComponent(sql)}`;
+
+  let data;
+  try {
+    const resp = await fetch(url);
+    data = await resp.json();
+  } catch (e) {
+    btn.disabled = false;
+    showError(`Network error: ${e.message}`);
+    setStatus("error", "Request failed");
+    return;
+  }
+
+  btn.disabled = false;
+
+  if (!data.success) {
+    const msg = data.error?.message || data.error?.info?.orig?.join("\n") || JSON.stringify(data.error, null, 2);
+    showError(msg);
+    setStatus("error", "Query error");
+    return;
+  }
+
+  fields  = data.result.fields || [];
+  allRows = data.result.records || [];
+  sortCol = null;
+  sortDir = "asc";
+
+  const n = allRows.length;
+  setStatus("success", `${n} row${n !== 1 ? "s" : ""} returned`);
+  renderTable(allRows);
+  showResults();
+}
+
+/* ─── Table rendering ───────────────────────────────────────────────────── */
+function numericField(col) {
+  const f = fields.find(f => f.id === col);
+  if (!f) return false;
+  return ["int", "float", "numeric", "integer", "bigint", "double", "real", "number"].some(
+    t => (f.type || "").toLowerCase().includes(t)
+  );
+}
+
+function renderTable(rows) {
+  const thead = document.getElementById("results-thead");
+  const tbody = document.getElementById("results-tbody");
+
+  // Determine visible columns from fields (skip _id if present and empty-looking)
+  const cols = fields.map(f => f.id).filter(c => c !== "_id" || rows.some(r => r[c] != null && r[c] !== ""));
+  // If fields missing, derive from rows
+  const displayCols = cols.length ? cols : (rows.length ? Object.keys(rows[0]) : []);
+
+  // Header
+  thead.innerHTML = `<tr>${displayCols.map(col => {
+    const isNum = numericField(col);
+    let cls = isNum ? "num-col" : "";
+    if (col === sortCol) cls += " sort-" + sortDir;
+    const arrow = col === sortCol
+      ? (sortDir === "asc" ? "↑" : "↓")
+      : "↕";
+    return `<th class="${cls}" onclick="sortBy('${escAttr(col)}')">${escHtml(col)}<span class="sort-arrow">${arrow}</span></th>`;
+  }).join("")}</tr>`;
+
+  // Body
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="${displayCols.length}" class="no-results">No results</td></tr>`;
+    updateCount(0, allRows.length);
+    return;
+  }
+
+  tbody.innerHTML = rows.map(row => `<tr>${displayCols.map(col => {
+    const val = row[col];
+    if (val === null || val === undefined) return `<td class="null-val">null</td>`;
+    if (numericField(col)) return `<td class="num-val">${escHtml(String(val))}</td>`;
+    return `<td title="${escAttr(String(val))}">${escHtml(String(val))}</td>`;
+  }).join("")}</tr>`).join("");
+
+  updateCount(rows.length, allRows.length);
+}
+
+function updateCount(shown, total) {
+  const el = document.getElementById("results-count");
+  if (shown === total) {
+    el.innerHTML = `<strong>${total}</strong> row${total !== 1 ? "s" : ""}`;
+  } else {
+    el.innerHTML = `<strong>${shown}</strong> of <strong>${total}</strong> rows`;
+  }
+}
+
+/* ─── Sort ──────────────────────────────────────────────────────────────── */
+function sortBy(col) {
+  if (sortCol === col) {
+    sortDir = sortDir === "asc" ? "desc" : "asc";
+  } else {
+    sortCol = col;
+    sortDir = "asc";
+  }
+  const filterTerm = document.getElementById("filter-input").value;
+  const baseRows = filterTerm ? getFilteredRows(filterTerm) : [...allRows];
+  const sorted = sortRows(baseRows, col, sortDir);
+  renderTable(sorted);
+}
+
+function sortRows(rows, col, dir) {
+  return [...rows].sort((a, b) => {
+    let va = a[col], vb = b[col];
+    if (va === null || va === undefined) va = "";
+    if (vb === null || vb === undefined) vb = "";
+    const na = Number(va), nb = Number(vb);
+    let cmp;
+    if (!isNaN(na) && !isNaN(nb)) {
+      cmp = na - nb;
+    } else {
+      cmp = String(va).localeCompare(String(vb), undefined, { sensitivity: "base" });
+    }
+    return dir === "asc" ? cmp : -cmp;
+  });
+}
+
+/* ─── Filter ────────────────────────────────────────────────────────────── */
+function applyFilter() {
+  const term = document.getElementById("filter-input").value;
+  let rows = getFilteredRows(term);
+  if (sortCol) rows = sortRows(rows, sortCol, sortDir);
+  renderTable(rows);
+}
+
+function getFilteredRows(term) {
+  if (!term) return allRows;
+  const lower = term.toLowerCase();
+  return allRows.filter(row =>
+    Object.values(row).some(v =>
+      v !== null && v !== undefined && String(v).toLowerCase().includes(lower)
+    )
+  );
+}
+
+/* ─── CSV download ──────────────────────────────────────────────────────── */
+function downloadCSV() {
+  if (!allRows.length && !fields.length) return;
+  const cols = fields.map(f => f.id).filter(c => c !== "_id" || allRows.some(r => r[c] != null));
+  const displayCols = cols.length ? cols : (allRows.length ? Object.keys(allRows[0]) : []);
+  const filterTerm = document.getElementById("filter-input").value;
+  const rows = filterTerm ? getFilteredRows(filterTerm) : allRows;
+  if (sortCol) rows.sort || (rows = sortRows(rows, sortCol, sortDir));
+
+  const csvRows = [
+    displayCols.map(csvCell).join(","),
+    ...rows.map(row => displayCols.map(col => csvCell(row[col] ?? "")).join(","))
+  ];
+  const blob = new Blob([csvRows.join("\r\n")], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "neso-data.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function csvCell(v) {
+  const s = String(v);
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+/* ─── UI helpers ────────────────────────────────────────────────────────── */
+function setStatus(type, msg) {
+  const el = document.getElementById("status");
+  el.className = "status " + type;
+  el.innerHTML = type === "loading"
+    ? `<div class="spinner"></div>${escHtml(msg)}`
+    : escHtml(msg);
+}
+
+function showError(msg) {
+  const el = document.getElementById("error-box");
+  el.textContent = msg;
+  el.classList.remove("hidden");
+  document.getElementById("welcome").classList.add("hidden");
+}
+
+function showResults() {
+  document.getElementById("results-section").classList.remove("hidden");
+  document.getElementById("welcome").classList.add("hidden");
+  document.getElementById("error-box").classList.add("hidden");
+}
+
+function hideResults() {
+  document.getElementById("results-section").classList.add("hidden");
+}
+
+function clearResults() {
+  hideResults();
+  document.getElementById("error-box").classList.add("hidden");
+  document.getElementById("welcome").classList.remove("hidden");
+  setStatus("idle", "");
+  allRows = [];
+  fields  = [];
+  sortCol = null;
+  document.getElementById("filter-input").value = "";
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function escAttr(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;");
+}
+
+/* ─── Init ──────────────────────────────────────────────────────────────── */
+renderResources();
+</script>
+</body>
+</html>
