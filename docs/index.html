@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Claude Monorepo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 720px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .logo {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, #cc785c 0%, #d4956b 100%);
+      border-radius: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 8px 32px rgba(204, 120, 92, 0.3);
+    }
+
+    h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg, #e6edf3 0%, #8b949e 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      font-size: 1.2rem;
+      color: #8b949e;
+      margin-bottom: 3rem;
+      line-height: 1.6;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 3rem;
+    }
+
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-align: left;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .card:hover {
+      border-color: #cc785c;
+      transform: translateY(-2px);
+    }
+
+    .card-icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+      color: #e6edf3;
+    }
+
+    .card p {
+      font-size: 0.875rem;
+      color: #8b949e;
+      line-height: 1.5;
+    }
+
+    .cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: #cc785c;
+      color: #fff;
+      text-decoration: none;
+      padding: 0.75rem 1.75rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: background 0.2s, transform 0.2s;
+    }
+
+    .cta:hover {
+      background: #b8614a;
+      transform: translateY(-1px);
+    }
+
+    footer {
+      margin-top: 4rem;
+      font-size: 0.8rem;
+      color: #484f58;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">&#x2699;&#xfe0f;</div>
+    <h1>Claude Monorepo</h1>
+    <p class="subtitle">
+      A unified repository for Claude-powered tools, integrations, and services.
+    </p>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-icon">&#x26A1;</div>
+        <h3>Fast</h3>
+        <p>Shared tooling and dependencies keep builds quick across all packages.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#x1F9E9;</div>
+        <h3>Modular</h3>
+        <p>Each package is independently versioned and deployable.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">&#x1F916;</div>
+        <h3>AI-Native</h3>
+        <p>Built from the ground up with Claude AI integrations at the core.</p>
+      </div>
+    </div>
+
+    <a class="cta" href="https://github.com/sterrs/claude-code">
+      View on GitHub &rarr;
+    </a>
+
+    <footer>
+      <p>Built with Claude &bull; Hosted on GitHub Pages</p>
+    </footer>
+  </div>
+</body>
+</html>
