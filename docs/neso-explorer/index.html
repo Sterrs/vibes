@@ -105,6 +105,15 @@
     }
     .back-link:hover { border-color: var(--green); color: var(--green); }
 
+    .sidebar-divider {
+      width: 4px;
+      background: var(--border);
+      cursor: col-resize;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    .sidebar-divider:hover { background: var(--teal); }
+
     /* ─── Layout ────────────────────────────────────── */
     .layout {
       display: flex;
@@ -148,6 +157,7 @@
 
     .sidebar-hint a { color: var(--teal); text-decoration: none; }
     .sidebar-hint a:hover { text-decoration: underline; }
+
 
     .param-badge {
       display: inline;
@@ -490,9 +500,8 @@
       background: var(--card);
       color: var(--text-muted);
       font-weight: 700;
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
+      font-size: 0.75rem;
+      letter-spacing: 0.02em;
       padding: 0.6rem 0.9rem;
       text-align: left;
       border-bottom: 2px solid var(--border);
@@ -500,7 +509,19 @@
       cursor: pointer;
       user-select: none;
       transition: background 0.12s, color 0.12s;
+      position: relative;
     }
+
+    .col-resize-handle {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 5px;
+      cursor: col-resize;
+      background: transparent;
+    }
+    .col-resize-handle:hover { background: rgba(46, 204, 113, 0.3); }
 
     .results-table th:hover { background: var(--surface); color: var(--text); }
     .results-table th.sort-asc  { color: var(--green); }
@@ -602,7 +623,7 @@
 <div class="layout">
 
   <!-- ── Sidebar: Resource ID library ── -->
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="sidebar-title">Resource Library</div>
       <p class="sidebar-hint">
@@ -616,31 +637,25 @@
     <div class="resources-list" id="resources-list">
       <!-- populated by JS -->
     </div>
-
-    <div class="add-resource">
-      <div class="add-resource-title">Add Dataset</div>
-      <div class="add-row">
-        <input class="input-field" id="new-name" placeholder="alias name" maxlength="64"
-               onkeydown="if(event.key==='Enter')addResource()" />
-      </div>
-      <div class="add-row">
-        <input class="input-field mono" id="new-guid" placeholder="resource-guid (UUID)"
-               onkeydown="if(event.key==='Enter')addResource()" />
-        <button class="btn-add" onclick="addResource()">Add</button>
-      </div>
-      <div class="add-row">
-        <input class="input-field" id="new-desc" placeholder="description (optional)"
-               onkeydown="if(event.key==='Enter')addResource()" />
-      </div>
-    </div>
   </aside>
+
+  <div class="sidebar-divider" id="sidebar-divider"></div>
 
   <!-- ── Main: Editor + Results ── -->
   <div class="main">
 
     <div class="editor-section">
       <div class="editor-label">SQL Query</div>
-      <textarea id="sql-editor">SELECT * FROM "{{carbon_intensity_half_hourly}}" LIMIT 20</textarea>
+      <textarea id="sql-editor">SELECT
+	"auctionProduct",
+  date_trunc('day', (("deliveryStart" at time zone 'UTC') at time zone 'Europe/London') + interval '1 hour') :: date as efa_date,
+  avg("clearedVolume") as avg_cleared_volume,
+  avg("clearingPrice") as avg_clearing_price
+FROM {{eac_summary}}
+WHERE "auctionProduct" = 'PSR'
+GROUP BY "auctionProduct", efa_date
+ORDER BY efa_date DESC
+LIMIT 100</textarea>
       <div class="editor-toolbar">
         <button class="btn-run" id="run-btn" onclick="runQuery()">
           <span class="run-icon">▶</span> Run Query
@@ -689,19 +704,24 @@
 /* ─── Default resources ─────────────────────────────────────────────────── */
 const DEFAULT_RESOURCES = [
   {
-    name: "carbon_intensity_half_hourly",
+    name: "eac_summary",
     guid: "596f29ac-0387-4ba4-a6d3-95c243140707",
-    desc: "Carbon intensity (half-hourly)"
+    desc: "EAC Summary"
   },
   {
-    name: "bmrs_generation_by_fuel",
-    guid: "0ff4c470-e348-4e46-bfe6-6e4a7a985729",
-    desc: "Generation by fuel type (BMRS)"
+    name: "eac_buy_orders",
+    guid: "1cf68f59-8eb8-4f1d-bccf-11b5a47b24e5",
+    desc: "EAC Buy Orders"
   },
   {
-    name: "forecast_demand",
-    guid: "7c7b6b71-d4af-4c7a-b5b0-3e1e1d2cf36d",
-    desc: "National demand forecast"
+    name: "eac_results_by_unit",
+    guid: "a63ab354-7e68-44c2-ad96-c6f920c30e85",
+    desc: "EAC Results by Unit"
+  },
+  {
+    name: "eac_sell_orders",
+    guid: "13b511df-d6ec-4143-afb1-0ecc6fd19810",
+    desc: "EAC Sell Orders"
   },
 ];
 
@@ -751,7 +771,7 @@ function renderResources() {
 function insertParam(i) {
   const r = resources[i];
   const cursor = editor.getCursor();
-  editor.replaceRange(`"{{${r.name}}}"`, cursor);
+  editor.replaceRange(`{{${r.name}}}`, cursor);
   editor.focus();
 }
 
@@ -829,7 +849,10 @@ let sortDir = "asc";
 function buildSql() {
   let sql = editor.getValue();
   for (const r of resources) {
-    sql = sql.replaceAll(`{{${r.name}}}`, r.guid);
+    // Replace quoted params: "{{name}}" → "guid"
+    sql = sql.replaceAll(`"{{${r.name}}}"`, `"${r.guid}"`);
+    // Replace unquoted params: {{name}} → "guid" (auto-quote)
+    sql = sql.replaceAll(`{{${r.name}}}`, `"${r.guid}"`);
   }
   // Check for unreplaced params
   const missing = [...sql.matchAll(/\{\{([^}]+)\}\}/g)].map(m => m[1]);
@@ -1071,8 +1094,85 @@ function escAttr(s) {
     .replace(/"/g, "&quot;");
 }
 
+/* ─── Sidebar resizing ─────────────────────────────────────────────────── */
+function setupSidebarResize() {
+  const divider = document.getElementById("sidebar-divider");
+  const sidebar = document.getElementById("sidebar");
+  let isResizing = false;
+
+  divider.addEventListener("mousedown", () => { isResizing = true; });
+  document.addEventListener("mouseup", () => { isResizing = false; });
+  document.addEventListener("mousemove", (e) => {
+    if (!isResizing) return;
+    const newWidth = Math.max(220, Math.min(420, e.clientX));
+    sidebar.style.width = newWidth + "px";
+    localStorage.setItem("sidebar_width", newWidth);
+  });
+}
+
+/* ─── Column resizing ──────────────────────────────────────────────────── */
+const columnWidths = {};
+
+function setupColumnResize() {
+  const table = document.getElementById("results-table");
+
+  // Override renderTable to add resize handles and restore widths
+  const originalRenderTable = renderTable;
+  renderTable = function(rows) {
+    originalRenderTable(rows);
+
+    const ths = table.querySelectorAll("th");
+    ths.forEach(th => {
+      const colName = th.textContent.trim();
+
+      // Restore saved width if exists
+      if (columnWidths[colName]) {
+        th.style.width = columnWidths[colName] + "px";
+        th.style.minWidth = columnWidths[colName] + "px";
+      }
+
+      // Remove existing handle if any
+      const existing = th.querySelector(".col-resize-handle");
+      if (existing) existing.remove();
+
+      // Add new handle
+      const handle = document.createElement("div");
+      handle.className = "col-resize-handle";
+      th.appendChild(handle);
+
+      handle.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const startWidth = th.offsetWidth;
+
+        function onMouseMove(e) {
+          const delta = e.clientX - startX;
+          const newWidth = Math.max(50, startWidth + delta);
+          th.style.width = newWidth + "px";
+          th.style.minWidth = newWidth + "px";
+          columnWidths[colName] = newWidth;
+        }
+
+        function onMouseUp() {
+          document.removeEventListener("mousemove", onMouseMove);
+          document.removeEventListener("mouseup", onMouseUp);
+        }
+
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+      });
+    });
+  };
+}
+
 /* ─── Init ──────────────────────────────────────────────────────────────── */
 renderResources();
+setupSidebarResize();
+setupColumnResize();
+
+// Restore sidebar width
+const savedWidth = localStorage.getItem("sidebar_width");
+if (savedWidth) document.getElementById("sidebar").style.width = savedWidth + "px";
 </script>
 </body>
 </html>
