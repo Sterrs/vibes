@@ -597,6 +597,77 @@
     .welcome h3 { font-size: 1rem; color: var(--text-muted); font-weight: 600; margin-bottom: 0.5rem; }
     .welcome p  { font-size: 0.82rem; max-width: 340px; line-height: 1.6; }
 
+    /* ─── Saved queries sidebar section ─────────────── */
+    .saved-queries-section {
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      max-height: 260px;
+    }
+
+    .saved-queries-header {
+      padding: 0.65rem 1.1rem 0.45rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .saved-queries-list {
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .saved-queries-list::-webkit-scrollbar { width: 5px; }
+    .saved-queries-list::-webkit-scrollbar-track { background: transparent; }
+    .saved-queries-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .saved-query-item {
+      padding: 0.45rem 1.1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--border-dim);
+      transition: background 0.12s;
+    }
+    .saved-query-item:hover { background: rgba(46,204,113,0.04); }
+
+    .saved-query-name {
+      flex: 1;
+      font-size: 0.8rem;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .saved-query-actions { display: flex; gap: 0.25rem; flex-shrink: 0; }
+
+    .btn-icon.share:hover { color: var(--teal); background: rgba(26,188,156,0.1); }
+
+    /* ─── Save dialog (inline toolbar) ──────────────── */
+    .save-dialog {
+      display: none;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .save-dialog.visible { display: flex; }
+
+    .btn-save {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 0.5rem 0.9rem;
+      border-radius: 7px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-save:hover { border-color: var(--teal); color: var(--teal); }
+
     /* ─── Responsive ─────────────────────────────────── */
     @media (max-width: 700px) {
       .layout { flex-direction: column; overflow: auto; }
@@ -637,6 +708,13 @@
     <div class="resources-list" id="resources-list">
       <!-- populated by JS -->
     </div>
+
+    <div class="saved-queries-section">
+      <div class="saved-queries-header">Saved Queries</div>
+      <div class="saved-queries-list" id="saved-queries-list">
+        <!-- populated by JS -->
+      </div>
+    </div>
   </aside>
 
   <div class="sidebar-divider" id="sidebar-divider"></div>
@@ -661,6 +739,14 @@ LIMIT 100</textarea>
           <span class="run-icon">▶</span> Run Query
         </button>
         <button class="btn-clear" onclick="clearResults()">Clear</button>
+        <button class="btn-save" id="save-btn" onclick="showSaveDialog()">Save</button>
+        <div class="save-dialog" id="save-dialog">
+          <input id="save-name" class="input-field" placeholder="Query name…"
+                 style="max-width:180px"
+                 onkeydown="if(event.key==='Enter')confirmSave();if(event.key==='Escape')hideSaveDialog();" />
+          <button class="btn-add" onclick="confirmSave()">Save</button>
+          <button class="btn-clear" onclick="hideSaveDialog()">Cancel</button>
+        </div>
         <div class="status idle" id="status"></div>
       </div>
     </div>
@@ -1165,8 +1251,145 @@ function setupColumnResize() {
   };
 }
 
+/* ─── Saved queries ─────────────────────────────────────────────────────── */
+const SAVED_QUERIES_KEY = "neso_explorer_queries";
+
+function loadSavedQueries() {
+  try {
+    const stored = localStorage.getItem(SAVED_QUERIES_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch (_) {}
+  return [];
+}
+
+function persistSavedQueries(queries) {
+  try { localStorage.setItem(SAVED_QUERIES_KEY, JSON.stringify(queries)); } catch (_) {}
+}
+
+let savedQueries = loadSavedQueries();
+
+function renderSavedQueries() {
+  const list = document.getElementById("saved-queries-list");
+  if (savedQueries.length === 0) {
+    list.innerHTML = `<div style="padding:0.6rem 1.1rem;font-size:0.75rem;color:var(--text-dim)">No saved queries yet.</div>`;
+    return;
+  }
+  list.innerHTML = savedQueries.map((q, i) => `
+    <div class="saved-query-item">
+      <div class="saved-query-name" title="${escAttr(q.name)}">${escHtml(q.name)}</div>
+      <div class="saved-query-actions">
+        <button class="btn-icon insert" title="Load into editor" onclick="loadSavedQuery(${i})">↩</button>
+        <button class="btn-icon share" title="Copy share link" onclick="shareQuery(${i})">⎘</button>
+        <button class="btn-icon delete" title="Delete" onclick="deleteSavedQuery(${i})">✕</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function showSaveDialog() {
+  document.getElementById("save-dialog").classList.add("visible");
+  document.getElementById("save-btn").style.display = "none";
+  const input = document.getElementById("save-name");
+  input.value = "";
+  input.style.borderColor = "";
+  input.focus();
+}
+
+function hideSaveDialog() {
+  document.getElementById("save-dialog").classList.remove("visible");
+  document.getElementById("save-btn").style.display = "";
+}
+
+function confirmSave() {
+  const nameEl = document.getElementById("save-name");
+  const name = nameEl.value.trim();
+  if (!name) { nameEl.focus(); nameEl.style.borderColor = "var(--red)"; return; }
+  nameEl.style.borderColor = "";
+
+  savedQueries.unshift({ name, sql: editor.getValue(), savedAt: Date.now() });
+  persistSavedQueries(savedQueries);
+  renderSavedQueries();
+  hideSaveDialog();
+  setStatus("success", "Query saved");
+}
+
+function loadSavedQuery(i) {
+  editor.setValue(savedQueries[i].sql);
+  editor.focus();
+}
+
+function deleteSavedQuery(i) {
+  savedQueries.splice(i, 1);
+  persistSavedQueries(savedQueries);
+  renderSavedQueries();
+}
+
+/* ─── Query sharing ─────────────────────────────────────────────────────── */
+function encodeShareData(data) {
+  return btoa(encodeURIComponent(JSON.stringify(data)));
+}
+
+function decodeShareData(encoded) {
+  try {
+    return JSON.parse(decodeURIComponent(atob(encoded)));
+  } catch (_) {
+    return null;
+  }
+}
+
+function shareQuery(i) {
+  const q = savedQueries[i];
+  const sql = q.sql;
+
+  // Include only resources referenced in this query
+  const refs = new Set([...sql.matchAll(/\{\{([^}]+)\}\}/g)].map(m => m[1]));
+  const referencedResources = resources.filter(r => refs.has(r.name));
+
+  const encoded = encodeShareData({ q: sql, r: referencedResources });
+  const url = window.location.origin + window.location.pathname + "?share=" + encoded;
+
+  navigator.clipboard.writeText(url).then(() => {
+    setStatus("success", "Link copied to clipboard!");
+    setTimeout(() => setStatus("idle", ""), 3000);
+  }).catch(() => {
+    // Fallback for environments where clipboard API is unavailable
+    prompt("Copy this share link:", url);
+  });
+}
+
+function checkShareParam() {
+  const params = new URLSearchParams(window.location.search);
+  const encoded = params.get("share");
+  if (!encoded) return;
+
+  const data = decodeShareData(encoded);
+  if (!data) return;
+
+  if (data.q) editor.setValue(data.q);
+
+  // Merge shared resources without overwriting existing ones with the same name
+  if (Array.isArray(data.r) && data.r.length) {
+    let changed = false;
+    for (const r of data.r) {
+      if (r.name && r.guid && !resources.find(existing => existing.name === r.name)) {
+        resources.push(r);
+        changed = true;
+      }
+    }
+    if (changed) {
+      saveResources(resources);
+      renderResources();
+    }
+  }
+
+  // Remove share param from URL without reloading
+  history.replaceState(null, "", window.location.pathname);
+}
+
 /* ─── Init ──────────────────────────────────────────────────────────────── */
 renderResources();
+renderSavedQueries();
+checkShareParam();
 setupSidebarResize();
 setupColumnResize();
 
