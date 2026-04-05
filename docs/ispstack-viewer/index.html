@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BOA Explorer</title>
+  <script src="bmu_fuel_types.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #0b0f1a;
+      --surface:    #131827;
+      --card:       #1a2035;
+      --border:     #2a3555;
+      --border-dim: #1e2a44;
+      --teal:       #1abc9c;
+      --amber:      #f0a500;
+      --red:        #e74c3c;
+      --purple:     #9b59b6;
+      --blue:       #3498db;
+      --text:       #dce8ff;
+      --text-muted: #6b80a8;
+      --text-dim:   #3d5080;
+    }
+
+    html, body {
+      min-height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    /* ── Header ─────────────────────────────────────── */
+    .app-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.85rem 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .app-logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #e74c3c 0%, #f0a500 100%);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+      box-shadow: 0 0 16px rgba(231,76,60,0.3);
+    }
+
+    .app-title-group { flex: 1; min-width: 0; }
+
+    .app-title {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .app-subtitle {
+      font-size: 0.71rem;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    .app-subtitle a { color: var(--teal); text-decoration: none; }
+    .app-subtitle a:hover { text-decoration: underline; }
+
+    .back-link {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 0.3rem 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      transition: border-color 0.15s, color 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .back-link:hover { border-color: var(--teal); color: var(--teal); }
+
+    /* ── Main ───────────────────────────────────────── */
+    main {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 1.25rem 1rem 2rem;
+    }
+
+    /* ── Controls ───────────────────────────────────── */
+    .controls {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      display: flex;
+      gap: 0.85rem;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      margin-bottom: 1.1rem;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      flex: 1;
+      min-width: 130px;
+    }
+
+    label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    input[type="date"],
+    select {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.88rem;
+      padding: 0.48rem 0.7rem;
+      width: 100%;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    input[type="date"]:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--teal);
+    }
+
+    select {
+      cursor: pointer;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b80a8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.65rem center;
+      padding-right: 1.8rem;
+    }
+
+    .load-btn {
+      background: linear-gradient(135deg, #e74c3c 0%, #f0a500 100%);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 0.52rem 1.4rem;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      white-space: nowrap;
+      flex-shrink: 0;
+      letter-spacing: 0.01em;
+    }
+    .load-btn:hover:not(:disabled) { opacity: 0.88; }
+    .load-btn:active:not(:disabled) { transform: scale(0.97); }
+    .load-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Colour mode toggle ─────────────────────────── */
+    .mode-toggle {
+      display: flex;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      flex-shrink: 0;
+      height: 34px;
+    }
+
+    .mode-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      padding: 0 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      white-space: nowrap;
+      text-transform: uppercase;
+    }
+
+    .mode-btn.active {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .mode-btn:first-child { border-right: 1px solid var(--border); }
+
+    /* ── Status ─────────────────────────────────────── */
+    .status {
+      text-align: center;
+      padding: 0.8rem;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .status.error { color: var(--red); }
+
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid var(--teal);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Chart card ─────────────────────────────────── */
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1rem 0.75rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .chart-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.6rem;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+    }
+
+    .chart-card-title {
+      font-size: 0.71rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
+
+    .chart-meta {
+      font-size: 0.71rem;
+      color: var(--text-dim);
+    }
+
+    .chart-svg-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #chart {
+      width: 100%;
+      height: auto;
+      display: block;
+      min-width: 300px;
+    }
+
+    /* ── Legend ─────────────────────────────────────── */
+    .legend {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.65rem 1.1rem;
+      display: flex;
+      gap: 1.1rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .legend-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .legend-swatch {
+      width: 11px; height: 11px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    /* ── Tooltip ────────────────────────────────────── */
+    .tooltip {
+      position: fixed;
+      background: #1a2035;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 0.6rem 0.85rem;
+      font-size: 0.77rem;
+      color: var(--text);
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity 0.1s;
+      max-width: 250px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.5);
+    }
+    .tooltip.visible { opacity: 1; }
+
+    .tt-id {
+      font-weight: 700;
+      font-size: 0.82rem;
+      color: var(--teal);
+      margin-bottom: 0.35rem;
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      word-break: break-all;
+    }
+
+    .tt-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.9rem;
+      line-height: 1.75;
+    }
+
+    .tt-key { color: var(--text-muted); }
+    .tt-val { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+    .tt-fuel {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 0.3rem;
+      padding-top: 0.3rem;
+      border-top: 1px solid var(--border-dim);
+    }
+
+    .tt-fuel-swatch {
+      width: 9px; height: 9px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .tt-fuel-label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    .tt-flags {
+      margin-top: 0.35rem;
+      display: flex;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+    }
+
+    .flag-pill {
+      font-size: 0.64rem;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      border: 1px solid;
+    }
+
+    @media (max-width: 500px) {
+      .app-header { padding: 0.75rem 0.85rem; }
+      main { padding: 0.9rem 0.75rem 1.5rem; }
+      .controls { padding: 0.85rem; gap: 0.65rem; }
+      .control-group { min-width: 110px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-logo">⚡</div>
+  <div class="app-title-group">
+    <div class="app-title">BOA Explorer</div>
+    <div class="app-subtitle">
+      Elexon Settlement Bid-Offer Stack ·
+      <a href="https://bmrs.elexon.co.uk/api-documentation/endpoint/balancing/settlement/stack/all/%7BbidOffer%7D/%7BsettlementDate%7D/%7BsettlementPeriod%7D" target="_blank" rel="noopener">BMRS API</a>
+    </div>
+  </div>
+  <a href="../" class="back-link">← Back</a>
+</header>
+
+<main>
+  <div class="controls">
+    <div class="control-group">
+      <label for="date-input">Settlement Date</label>
+      <input type="date" id="date-input" />
+    </div>
+    <div class="control-group" style="max-width:170px;flex:0 1 170px">
+      <label for="period-input">Settlement Period</label>
+      <select id="period-input"></select>
+    </div>
+    <button class="load-btn" id="load-btn">Load Stack</button>
+    <div style="display:flex;flex-direction:column;gap:0.3rem;flex-shrink:0;justify-content:flex-end">
+      <label>Colour Mode</label>
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="mode-fuel">Fuel Type</button>
+        <button class="mode-btn" id="mode-flags">Flags</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="status-wrap"></div>
+
+  <div id="chart-card" class="chart-card" style="display:none">
+    <div class="chart-card-header">
+      <span class="chart-card-title">Bid / Offer Stack</span>
+      <span class="chart-meta" id="chart-meta"></span>
+    </div>
+    <div class="chart-svg-wrapper">
+      <svg id="chart" viewBox="0 0 520 570" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+  </div>
+
+  <div id="legend" class="legend" style="display:none"></div>
+</main>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+  /* ── Config ────────────────────────────────────────────── */
+  const BASE = 'https://data.elexon.co.uk/bmrs/api/v1/balancing/settlement/stack/all';
+
+  const FLAGS_CLR = {
+    normal: '#1abc9c',
+    so:     '#e74c3c',
+    cadl:   '#f0a500',
+    both:   '#9b59b6',
+  };
+
+  const FUEL_CLR = {
+    '#FFAAAA': 'Battery',
+    '#C4AAEE': 'CCGT',
+    '#B07070': 'Biomass',
+    '#AADDAA': 'Wind',
+    '#AABBEE': 'Pumped Storage',
+    '#AADDEE': 'NPSHYD',
+    '#EEEEAA': 'OCGT',
+    '#FFCCAA': 'Solar',
+    '#FFBBDD': 'Load Response',
+    '#CCAA88': 'Gas / Diesel',
+    '#BBBBBB': 'Other',
+    '#8A9070': 'No BMU',
+  };
+
+  const NO_BMU_COLOUR = '#8A9070';
+
+  // SVG viewport
+  const VW = 520, VH = 570;
+  const PT = 52, PB = 38, PL = 58, PR = 12;
+  const GAP = 44;
+  const CH = VH - PT - PB;
+  const BW = (VW - PL - PR - GAP) / 2;
+  const BID_X  = PL;
+  const OFF_X  = PL + BW + GAP;
+  const Y_TOP  = PT;
+  const Y_BOT  = PT + CH;
+
+  /* ── State ─────────────────────────────────────────────── */
+  let colourMode = 'fuel';   // 'flags' | 'fuel'
+  let bmuData    = {};        // BMU ID → { label, colour, gcOc2, ... }
+  let lastBid    = [];
+  let lastOffer  = [];
+
+  /* ── Load BMU fuel type data ───────────────────────────── */
+  if (window.BMU_FUEL_DATA) {
+    bmuData = window.BMU_FUEL_DATA.bmu;
+    const meta = window.BMU_FUEL_DATA._meta;
+    if (meta?.sourceUpdated) {
+      document.querySelector('.app-subtitle').insertAdjacentHTML(
+        'beforeend',
+        ` · <span style="color:var(--text-dim)">BMU data: ${meta.sourceUpdated}</span>`
+      );
+    }
+  } else {
+    console.warn('[BMU] bmu_fuel_types.js not loaded — fuel type mode unavailable');
+  }
+
+  /* ── Colour helpers ────────────────────────────────────── */
+  function segColor(d) {
+    if (colourMode === 'fuel') {
+      const bmu = bmuData[d.id];
+      return bmu ? bmu.colour : NO_BMU_COLOUR;
+    }
+    if (d.soFlag && d.cadlFlag) return FLAGS_CLR.both;
+    if (d.soFlag)               return FLAGS_CLR.so;
+    if (d.cadlFlag)             return FLAGS_CLR.cadl;
+    return FLAGS_CLR.normal;
+  }
+
+  function bmuFuelLabel(d) {
+    const bmu = bmuData[d.id];
+    if (!bmu) return { label: 'No BMU match', colour: NO_BMU_COLOUR };
+    return { label: bmu.label, colour: bmu.colour };
+  }
+
+  /* ── Legend ────────────────────────────────────────────── */
+  const legendEl = document.getElementById('legend');
+
+  function renderLegend(bidData, offerData) {
+    legendEl.innerHTML = '';
+
+    if (colourMode === 'flags') {
+      const items = [
+        { colour: FLAGS_CLR.normal, label: 'Normal' },
+        { colour: FLAGS_CLR.so,     label: 'SO Flag' },
+        { colour: FLAGS_CLR.cadl,   label: 'CADL Flag' },
+        { colour: FLAGS_CLR.both,   label: 'SO + CADL' },
+      ];
+      legendEl.innerHTML = `<span class="legend-label">Colour key</span>` +
+        items.map(i => `
+          <div class="legend-item">
+            <div class="legend-swatch" style="background:${i.colour}"></div>
+            <span>${i.label}</span>
+          </div>`).join('');
+    } else {
+      // Show only fuel types present in the current data
+      const seen = new Map(); // colour → label
+      for (const d of [...bidData, ...offerData]) {
+        const bmu = bmuData[d.id];
+        const colour = bmu ? bmu.colour : NO_BMU_COLOUR;
+        const label  = bmu ? bmu.label  : 'No BMU';
+        if (!seen.has(colour)) seen.set(colour, label);
+      }
+      // Sort by label
+      const sorted = [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+      legendEl.innerHTML = `<span class="legend-label">Fuel type</span>` +
+        sorted.map(([colour, label]) => `
+          <div class="legend-item">
+            <div class="legend-swatch" style="background:${colour}"></div>
+            <span>${label}</span>
+          </div>`).join('');
+    }
+  }
+
+  /* ── Format helpers ────────────────────────────────────── */
+  const f2 = n => Number(n).toFixed(2);
+  const f3 = n => Number(n).toFixed(3);
+  const fPrice = p => '£' + f2(p) + ' /MWh';
+  const fVol   = v => f3(Math.abs(v)) + ' MWh';
+
+  /* ── Populate controls ─────────────────────────────────── */
+  const dateInput   = document.getElementById('date-input');
+  const periodSel   = document.getElementById('period-input');
+  const loadBtn     = document.getElementById('load-btn');
+  const statusWrap  = document.getElementById('status-wrap');
+  const chartCard   = document.getElementById('chart-card');
+  const chartMeta   = document.getElementById('chart-meta');
+  const tooltip     = document.getElementById('tooltip');
+
+  // Default to yesterday
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  dateInput.value = yesterday.toISOString().slice(0, 10);
+
+  for (let i = 1; i <= 50; i++) {
+    const o = document.createElement('option');
+    o.value = i;
+    o.textContent = `Period ${i}`;
+    if (i === 1) o.selected = true;
+    periodSel.appendChild(o);
+  }
+
+  /* ── Mode toggle ───────────────────────────────────────── */
+  document.getElementById('mode-flags').addEventListener('click', () => setMode('flags'));
+  document.getElementById('mode-fuel').addEventListener('click',  () => setMode('fuel'));
+
+  function setMode(mode) {
+    colourMode = mode;
+    document.getElementById('mode-flags').classList.toggle('active', mode === 'flags');
+    document.getElementById('mode-fuel').classList.toggle('active',  mode === 'fuel');
+    if (lastBid.length || lastOffer.length) {
+      renderChart(lastBid, lastOffer);
+      renderLegend(lastBid, lastOffer);
+    }
+  }
+
+  /* ── Tooltip ───────────────────────────────────────────── */
+  function showTooltip(e, d, side) {
+    const clr = segColor(d);
+    const flags = [];
+    if (d.soFlag)           flags.push({ label: 'SO',       clr: FLAGS_CLR.so   });
+    if (d.cadlFlag)         flags.push({ label: 'CADL',     clr: FLAGS_CLR.cadl });
+    if (d.storProviderFlag) flags.push({ label: 'STOR',     clr: '#3498db' });
+    if (d.repricedIndicator) flags.push({ label: 'REPRICED', clr: '#8e8e8e' });
+
+    const { label: fuelLabel, colour: fuelColour } = bmuFuelLabel(d);
+    const bmu = bmuData[d.id];
+    const gcOc2 = bmu?.gcOc2 ? '<span class="flag-pill" style="color:#f0a500;border-color:#f0a500;background:#f0a50022">OC2</span>' : '';
+
+    tooltip.innerHTML = `
+      <div class="tt-id">${d.id}</div>
+      <div class="tt-row"><span class="tt-key">Side</span><span class="tt-val">${side}</span></div>
+      <div class="tt-row"><span class="tt-key">Original price</span><span class="tt-val" style="color:${colourMode === 'flags' ? clr : 'var(--text)'}">${fPrice(d.originalPrice)}</span></div>
+      <div class="tt-row"><span class="tt-key">Final price</span><span class="tt-val">${fPrice(d.finalPrice)}</span></div>
+      <div class="tt-row"><span class="tt-key">Volume</span><span class="tt-val">${fVol(d.volume)}</span></div>
+      <div class="tt-row"><span class="tt-key">Acceptance ID</span><span class="tt-val">${d.acceptanceId}</span></div>
+      <div class="tt-row"><span class="tt-key">Sequence #</span><span class="tt-val">${d.sequenceNumber}</span></div>
+      <div class="tt-fuel">
+        <div class="tt-fuel-swatch" style="background:${fuelColour}"></div>
+        <span class="tt-fuel-label">${fuelLabel}${bmu?.bmrsFuelType ? ' · ' + bmu.bmrsFuelType : ''}</span>
+      </div>
+      ${flags.length || gcOc2
+        ? `<div class="tt-flags">
+            ${flags.map(f => `<span class="flag-pill" style="color:${f.clr};border-color:${f.clr};background:${f.clr}22">${f.label}</span>`).join('')}
+            ${gcOc2}
+           </div>`
+        : ''}
+    `;
+    tooltip.classList.add('visible');
+    positionTooltip(e.clientX, e.clientY);
+  }
+
+  function positionTooltip(cx, cy) {
+    const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+    const vw = window.innerWidth,   vh = window.innerHeight;
+    let x = cx + 16, y = cy - 12;
+    if (x + tw > vw - 8) x = cx - tw - 16;
+    if (y + th > vh - 8) y = cy - th + 12;
+    tooltip.style.left = x + 'px';
+    tooltip.style.top  = y + 'px';
+  }
+
+  function hideTooltip() { tooltip.classList.remove('visible'); }
+
+  /* ── SVG helpers ───────────────────────────────────────── */
+  const NS = 'http://www.w3.org/2000/svg';
+
+  function el(tag, attrs) {
+    const e = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+    return e;
+  }
+
+  function rect(x, y, w, h, attrs) {
+    return el('rect', { x, y, width: Math.max(w, 0), height: Math.max(h, 0.2), ...attrs });
+  }
+
+  function text(x, y, str, attrs) {
+    const t = el('text', { x, y, ...attrs });
+    t.textContent = str;
+    return t;
+  }
+
+  function line(x1, y1, x2, y2, attrs) {
+    return el('line', { x1, y1, x2, y2, ...attrs });
+  }
+
+  /* ── Render ────────────────────────────────────────────── */
+  function renderChart(bidData, offerData) {
+    const svg = document.getElementById('chart');
+    svg.innerHTML = '';
+
+    const offers = [...offerData].sort((a, b) => b.originalPrice - a.originalPrice);
+    const bids   = [...bidData].sort((a, b)   => a.originalPrice - b.originalPrice);
+
+    const totalOff = offers.reduce((s, d) => s + Math.abs(d.volume), 0);
+    const totalBid = bids.reduce((s, d)   => s + Math.abs(d.volume), 0);
+    const maxVol   = Math.max(totalOff, totalBid, 1e-6);
+    const toH      = v  => (Math.abs(v) / maxVol) * CH;
+
+    // ── Y-axis ──────────────────────────────────────────────
+    const TICKS = 5;
+    for (let i = 0; i <= TICKS; i++) {
+      const frac = i / TICKS;
+      const vol  = frac * maxVol;
+      const y    = Y_BOT - frac * CH;
+      svg.appendChild(line(BID_X, y, OFF_X + BW, y, { stroke: '#1e2a44', 'stroke-width': 0.8 }));
+      svg.appendChild(text(PL - 5, y + 3.5, f2(vol), {
+        fill: '#6b80a8', 'font-size': '9', 'text-anchor': 'end', 'font-family': 'monospace',
+      }));
+    }
+
+    svg.appendChild(line(PL - 1, Y_TOP, PL - 1, Y_BOT, { stroke: '#2a3555', 'stroke-width': 1 }));
+
+    const axLabel = text(11, Y_TOP + CH / 2, 'Volume (MWh)', {
+      fill: '#6b80a8', 'font-size': '9', 'text-anchor': 'middle', 'font-family': 'sans-serif',
+      transform: `rotate(-90,11,${Y_TOP + CH / 2})`,
+    });
+    svg.appendChild(axLabel);
+
+    // ── Bar header labels ────────────────────────────────────
+    svg.appendChild(text(BID_X + BW / 2, Y_TOP - 26, 'BID STACK', {
+      fill: '#dce8ff', 'font-size': '11', 'font-weight': '700',
+      'text-anchor': 'middle', 'font-family': 'sans-serif', 'letter-spacing': '0.5',
+    }));
+    svg.appendChild(text(BID_X + BW / 2, Y_TOP - 12, `${f2(totalBid)} MWh · ${bids.length} entries`, {
+      fill: '#6b80a8', 'font-size': '9', 'text-anchor': 'middle', 'font-family': 'sans-serif',
+    }));
+
+    svg.appendChild(text(OFF_X + BW / 2, Y_TOP - 26, 'OFFER STACK', {
+      fill: '#dce8ff', 'font-size': '11', 'font-weight': '700',
+      'text-anchor': 'middle', 'font-family': 'sans-serif', 'letter-spacing': '0.5',
+    }));
+    svg.appendChild(text(OFF_X + BW / 2, Y_TOP - 12, `${f2(totalOff)} MWh · ${offers.length} entries`, {
+      fill: '#6b80a8', 'font-size': '9', 'text-anchor': 'middle', 'font-family': 'sans-serif',
+    }));
+
+    // ── Bottom baseline ──────────────────────────────────────
+    svg.appendChild(line(BID_X, Y_BOT + 1, OFF_X + BW, Y_BOT + 1, { stroke: '#2a3555', 'stroke-width': 1 }));
+    svg.appendChild(text(BID_X + BW / 2, Y_BOT + 14, '← downward action', {
+      fill: '#3d5080', 'font-size': '9', 'text-anchor': 'middle', 'font-family': 'sans-serif',
+    }));
+    svg.appendChild(text(OFF_X + BW / 2, Y_BOT + 14, 'upward action →', {
+      fill: '#3d5080', 'font-size': '9', 'text-anchor': 'middle', 'font-family': 'sans-serif',
+    }));
+
+    // ── Draw a stack ─────────────────────────────────────────
+    function drawStack(data, startX, side) {
+      let y = Y_BOT;
+      for (const d of data) {
+        const h = toH(d.volume);
+        y -= h;
+        const clr = segColor(d);
+        const r = rect(startX, y, BW, h, { fill: clr, opacity: '0.82' });
+
+        r.addEventListener('mouseenter', e => {
+          r.setAttribute('opacity', '1');
+          r.setAttribute('stroke', '#ffffff');
+          r.setAttribute('stroke-width', '0.8');
+          showTooltip(e, d, side);
+        });
+        r.addEventListener('mousemove', e => positionTooltip(e.clientX, e.clientY));
+        r.addEventListener('mouseleave', () => {
+          r.setAttribute('opacity', '0.82');
+          r.removeAttribute('stroke');
+          r.removeAttribute('stroke-width');
+          hideTooltip();
+        });
+        r.addEventListener('touchstart', e => {
+          e.preventDefault();
+          const t = e.touches[0];
+          showTooltip({ clientX: t.clientX, clientY: t.clientY }, d, side);
+        }, { passive: false });
+
+        svg.appendChild(r);
+      }
+    }
+
+    drawStack(bids,   BID_X, 'Bid');
+    drawStack(offers, OFF_X, 'Offer');
+  }
+
+  /* ── Fetch ─────────────────────────────────────────────── */
+  async function fetchStack(side, date, period) {
+    const url = `${BASE}/${side}/${date}/${period}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${side} stack`);
+    return (await res.json()).data ?? [];
+  }
+
+  /* ── Status helpers ────────────────────────────────────── */
+  function setStatus(msg, type) {
+    if (!msg) { statusWrap.innerHTML = ''; return; }
+    const loading = type === 'loading';
+    statusWrap.innerHTML = `
+      <div class="status ${type || ''}">
+        ${loading ? '<div class="spinner"></div>' : ''}
+        ${msg}
+      </div>`;
+  }
+
+  /* ── Load handler ──────────────────────────────────────── */
+  async function load() {
+    const date   = dateInput.value;
+    const period = periodSel.value;
+    if (!date) return;
+
+    setStatus('Loading bid & offer data…', 'loading');
+    chartCard.style.display = 'none';
+    legendEl.style.display  = 'none';
+    loadBtn.disabled = true;
+
+    try {
+      const [bidData, offerData] = await Promise.all([
+        fetchStack('bid',   date, period),
+        fetchStack('offer', date, period),
+      ]);
+
+      lastBid   = bidData;
+      lastOffer = offerData;
+
+      setStatus(null);
+      chartCard.style.display = 'block';
+      legendEl.style.display  = 'flex';
+      chartMeta.textContent   = `${date} · SP${period} · ${bidData.length} bids · ${offerData.length} offers`;
+
+      renderChart(bidData, offerData);
+      renderLegend(bidData, offerData);
+    } catch (err) {
+      setStatus(err.message, 'error');
+    } finally {
+      loadBtn.disabled = false;
+    }
+  }
+
+  loadBtn.addEventListener('click', load);
+  dateInput.addEventListener('keydown', e => e.key === 'Enter' && load());
+  periodSel.addEventListener('keydown', e => e.key === 'Enter' && load());
+
+  document.addEventListener('touchstart', e => {
+    if (!e.target.closest('rect')) hideTooltip();
+  });
+
+  load();
+</script>
+</body>
+</html>
