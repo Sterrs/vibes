@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GB Energy Market Price Explorer</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #0b0f1a;
+      --surface:    #131827;
+      --card:       #1a2035;
+      --border:     #2a3555;
+      --border-dim: #1e2a44;
+      --text:       #dce8ff;
+      --text-muted: #6b80a8;
+      --text-dim:   #3d5080;
+
+      --amber:  #f0a500;
+      --red:    #e05c50;
+      --teal:   #1abc9c;
+      --blue:   #4a9eff;
+      --purple: #b57bee;
+
+      --font-mono: "JetBrains Mono", "Fira Code", Menlo, monospace;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ─── Header ─────────────────────────────────── */
+    .app-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.85rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      flex-shrink: 0;
+    }
+
+    .app-logo {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #f0a500 0%, #e05c50 100%);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+      box-shadow: 0 0 18px rgba(240, 165, 0, 0.3);
+    }
+
+    .app-title-group { flex: 1; min-width: 0; }
+
+    .app-title {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .app-subtitle {
+      font-size: 0.73rem;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    .header-back {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.82rem;
+      padding: 0.35rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .header-back:hover { color: var(--text); border-color: var(--text-muted); }
+
+    /* ─── Main layout ─────────────────────────────── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      padding: 1.25rem 1.5rem;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* ─── Controls ────────────────────────────────── */
+    .controls {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+    }
+
+    .ctrl-dates {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .ctrl-dates .ctrl-group {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .ctrl-dates .ctrl-group label {
+      width: 4rem;
+      flex-shrink: 0;
+    }
+
+    .ctrl-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .ctrl-group label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .ctrl-group input[type="date"] {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.88rem;
+      padding: 0.42rem 0.65rem;
+      outline: none;
+      font-family: var(--font-mono);
+      transition: border-color 0.15s;
+      cursor: pointer;
+    }
+
+    .ctrl-group input[type="date"]:focus { border-color: var(--amber); }
+
+    .ctrl-hint {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      margin-top: 0.1rem;
+    }
+
+    .fetch-btn {
+      background: linear-gradient(135deg, #f0a500 0%, #e05c50 100%);
+      border: none;
+      border-radius: 7px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.88rem;
+      font-weight: 700;
+      padding: 0.52rem 1.35rem;
+      transition: opacity 0.15s, transform 0.1s;
+      white-space: nowrap;
+    }
+
+    .fetch-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    .fetch-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ─── Status bar ──────────────────────────────── */
+    .status-bar {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+
+    .status-dot.loading { background: var(--amber); animation: pulse 1s infinite; }
+    .status-dot.ok      { background: var(--teal); }
+    .status-dot.err     { background: var(--red); }
+    .status-dot.warn    { background: var(--amber); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+
+    /* ─── Chart card ──────────────────────────────── */
+    .chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      position: relative;
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .chart-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .chart-legend {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      user-select: none;
+      transition: opacity 0.15s;
+    }
+
+    .legend-item:hover { color: var(--text); }
+
+    .legend-item.hidden { opacity: 0.35; }
+
+    .legend-swatch {
+      width: 22px;
+      height: 3px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .chart-wrap {
+      position: relative;
+      height: 360px;
+    }
+
+    /* ─── Stats row ───────────────────────────────── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.9rem 1.1rem;
+    }
+
+    .stat-series {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .stat-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .stat-values {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .stat-item { flex: 1; }
+
+    .stat-label {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      margin-top: 0.15rem;
+    }
+
+    /* ─── Table ───────────────────────────────────── */
+    .table-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .table-header {
+      padding: 0.9rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .table-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .table-count {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+    }
+
+    .table-scroll {
+      overflow: auto;
+      max-height: 420px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      font-family: var(--font-mono);
+    }
+
+    thead th {
+      background: var(--surface);
+      padding: 0.55rem 1rem;
+      text-align: left;
+      font-size: 0.69rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    thead th:not(:first-child) { text-align: right; }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border-dim);
+      transition: background 0.1s;
+    }
+
+    tbody tr:hover { background: rgba(255,255,255,0.02); }
+    tbody tr:last-child { border-bottom: none; }
+
+    tbody td {
+      padding: 0.45rem 1rem;
+      white-space: nowrap;
+    }
+
+    tbody td:not(:first-child) { text-align: right; }
+
+    .td-date   { color: var(--text-muted); font-size: 0.75rem; }
+    .td-period { color: var(--text-dim); }
+    .td-time   { color: var(--text-muted); font-size: 0.75rem; }
+
+    .price-cell { font-weight: 600; }
+
+    /* ─── Empty / loading states ──────────────────── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      padding: 3.5rem 2rem;
+      color: var(--text-dim);
+      font-size: 0.88rem;
+      text-align: center;
+    }
+
+    .empty-icon { font-size: 2.2rem; opacity: 0.5; }
+
+    /* ─── Sources footer ──────────────────────────── */
+    .sources {
+      display: flex;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      padding: 0.6rem 0 0.25rem;
+    }
+
+    .source-tag {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      background: var(--surface);
+      border: 1px solid var(--border-dim);
+      border-radius: 4px;
+      padding: 0.2rem 0.5rem;
+    }
+
+    .source-tag a { color: inherit; text-decoration: none; }
+    .source-tag a:hover { color: var(--text-muted); }
+
+    /* ─── Responsive ──────────────────────────────── */
+    @media (max-width: 600px) {
+      .main { padding: 0.9rem 0.9rem; }
+      .controls { gap: 0.9rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="app-logo">⚡</div>
+  <div class="app-title-group">
+    <div class="app-title">GB Market Price Explorer</div>
+    <div class="app-subtitle">Settlement prices across balancing, intraday &amp; day-ahead markets</div>
+  </div>
+  <a href="../" class="header-back">&larr; Vibes</a>
+</header>
+
+<main class="main">
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="ctrl-dates">
+      <div class="ctrl-group">
+        <label>From</label>
+        <input type="date" id="dateFrom" />
+      </div>
+      <div class="ctrl-group">
+        <label>To</label>
+        <input type="date" id="dateTo" />
+      </div>
+      <div class="ctrl-hint">Max 14 days &middot; IMRP delayed ~1 week</div>
+    </div>
+    <button class="fetch-btn" id="fetchBtn" onclick="fetchAll()">Load prices</button>
+  </div>
+
+  <!-- Chart -->
+  <div class="chart-card">
+    <div class="chart-header">
+      <div class="chart-title">Price &mdash; £/MWh</div>
+      <div class="chart-legend" id="chartLegend">
+        <div class="legend-item" data-idx="0" onclick="toggleSeries(0)">
+          <div class="legend-swatch" style="background:#f0a500"></div>
+          <span>System Imbalance Price</span>
+        </div>
+        <div class="legend-item" data-idx="1" onclick="toggleSeries(1)">
+          <div class="legend-swatch" style="background:#4a9eff"></div>
+          <span>Intraday Index</span>
+        </div>
+        <div class="legend-item" data-idx="2" onclick="toggleSeries(2)">
+          <div class="legend-swatch" style="background:#b57bee"></div>
+          <span>Day-Ahead IMRP</span>
+        </div>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="priceChart"></canvas>
+      <div class="empty-state" id="chartEmpty">
+        <div class="empty-icon">📈</div>
+        <div>Select a date range and click <strong>Load prices</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats row -->
+  <div class="stats-row" id="statsRow"></div>
+
+  <!-- Table -->
+  <div class="table-card">
+    <div class="table-header">
+      <div class="table-title">Settlement periods</div>
+      <div class="table-count" id="tableCount"></div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>SP</th>
+            <th>Period start (UTC)</th>
+            <th style="color:#f0a500">System Imbalance (£/MWh)</th>
+            <th style="color:#4a9eff">Intraday Index (£/MWh)</th>
+            <th style="color:#b57bee">Day-Ahead IMRP (£/MWh)</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr>
+            <td colspan="7">
+              <div class="empty-state" style="padding:2.5rem">
+                <div class="empty-icon">📋</div>
+                <div>No data loaded yet</div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Data sources -->
+  <div class="sources">
+    <span class="source-tag">Data: <a href="https://data.elexon.co.uk" target="_blank">Elexon BMRS API</a></span>
+    <span class="source-tag">Data: <a href="https://dp.lowcarboncontracts.uk" target="_blank">Low Carbon Contracts Company</a></span>
+    <span class="source-tag">Settlement periods: GB half-hourly (23:00–23:00 UTC)</span>
+  </div>
+
+</main>
+
+<script>
+// ─── Chart instance ──────────────────────────────────────────────────────────
+let chartInstance = null;
+
+// ─── Colour palette ──────────────────────────────────────────────────────────
+const SERIES = [
+  { key: 'sell',  label: 'System Imbalance Price', color: '#f0a500' },
+  { key: 'midp',  label: 'Intraday Index',          color: '#4a9eff' },
+  { key: 'imrp',  label: 'Day-Ahead IMRP',          color: '#b57bee' },
+];
+
+// ─── Period → UTC timestamp ──────────────────────────────────────────────────
+// GB settlement: period 1 starts 23:00 UTC on (settlementDate − 1 day)
+function periodTimestamp(settlementDate, period) {
+  const d = new Date(settlementDate + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() - 1);
+  d.setUTCHours(23, 0, 0, 0);
+  d.setUTCMinutes(d.getUTCMinutes() + (period - 1) * 30);
+  return d;
+}
+
+function formatTime(ts) {
+  return ts.toISOString().replace('T', ' ').slice(0, 16) + 'Z';
+}
+
+// ─── Date helpers ────────────────────────────────────────────────────────────
+function dateRange(from, to) {
+  const dates = [];
+  const cur = new Date(from + 'T00:00:00Z');
+  const end = new Date(to   + 'T00:00:00Z');
+  while (cur <= end) {
+    dates.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+// ─── Status helpers ──────────────────────────────────────────────────────────
+function setStatus() {}
+
+// ─── Fetch: system prices ────────────────────────────────────────────────────
+async function fetchSystemPrices(dates) {
+  setStatus('sys', 'loading');
+  const results = {};
+  try {
+    await Promise.all(dates.map(async date => {
+      const url = `https://data.elexon.co.uk/bmrs/api/v1/balancing/settlement/system-prices/${date}`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      const data = j.data || j;
+      console.log(`[SYS] ${date}: ${data.length} records`, data[0]);
+      for (const row of data) {
+        const key = `${row.settlementDate}:${row.settlementPeriod}`;
+        results[key] = { sell: row.systemSellPrice, buy: row.systemBuyPrice };
+      }
+    }));
+    setStatus('sys', 'ok');
+  } catch (e) {
+    console.warn('System prices error:', e);
+    setStatus('sys', 'err');
+  }
+  return results;
+}
+
+// ─── Fetch: market index ─────────────────────────────────────────────────────
+// Fetches per-day to avoid the API's undocumented range limit (~7 days max)
+async function fetchMarketIndex(dates) {
+  setStatus('mid', 'loading');
+  const results = {};
+  let hasData = false;
+  try {
+    await Promise.all(dates.map(async date => {
+      const fromTs = new Date(date + 'T00:00:00Z');
+      fromTs.setUTCDate(fromTs.getUTCDate() - 1);
+      fromTs.setUTCHours(23, 0, 0, 0);
+      const toTs = new Date(date + 'T00:00:00Z');
+      toTs.setUTCHours(23, 0, 0, 0);
+      const fmt = d => d.toISOString().replace('.000Z', 'Z');
+      const url = `https://data.elexon.co.uk/bmrs/api/v1/balancing/pricing/market-index`
+                + `?from=${encodeURIComponent(fmt(fromTs))}`
+                + `&to=${encodeURIComponent(fmt(toTs))}`
+                + `&dataProviders=APXMIDP`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      const data = j.data || [];
+      for (const row of data) {
+        if (row.price) hasData = true;
+        const key = `${row.settlementDate}:${row.settlementPeriod}`;
+        if (!results[key] || row.volume > (results[key]._vol || 0)) {
+          results[key] = { midp: row.price, _vol: row.volume };
+        }
+      }
+    }));
+    setStatus('mid', hasData ? 'ok' : 'warn');
+  } catch (e) {
+    console.warn('Market index error:', e);
+    setStatus('mid', 'err');
+  }
+  return results;
+}
+
+// ─── JSONP helper (bypasses CORS via script tag) ─────────────────────────────
+function jsonp(url) {
+  return new Promise((resolve, reject) => {
+    const cb = '__cb' + Date.now() + Math.random().toString(36).slice(2);
+    window[cb] = data => { delete window[cb]; script.remove(); resolve(data); };
+    const script = document.createElement('script');
+    script.src = url + (url.includes('?') ? '&' : '?') + `callback=${cb}`;
+    script.onerror = () => { delete window[cb]; script.remove(); reject(new Error('JSONP failed')); };
+    document.head.appendChild(script);
+  });
+}
+
+// ─── Fetch: IMRP ─────────────────────────────────────────────────────────────
+// IMRP uses 24 hourly periods. We spread each hourly value across both
+// corresponding Elexon half-hourly periods (SP N → Elexon SP 2N-1 and 2N).
+// LCC API has no CORS headers so we use JSONP (CKAN supports ?callback=).
+async function fetchIMRP(fromDate, toDate) {
+  setStatus('imrp', 'loading');
+  const results = {};
+  const dates = dateRange(fromDate, toDate);
+  let total = 0;
+  try {
+    await Promise.all(dates.map(async date => {
+      const imrpDate = `${date} 00:00:00.0000000`;
+      const filters = encodeURIComponent(JSON.stringify({ IMRP_Date: imrpDate }));
+      const url = `https://dp.lowcarboncontracts.uk/api/action/datastore_search`
+                + `?resource_id=d0e58993-d8b2-4ab5-90e0-518b1e7b2f1e`
+                + `&filters=${filters}&limit=24&sort=Settlement_Period+asc`;
+      const j = await jsonp(url);
+      if (!j.success) throw new Error('API error');
+      const data = j.result?.records || [];
+      total += data.length;
+      for (const row of data) {
+        const sp = parseInt(row.Settlement_Period, 10);
+        const val = { imrp: parseFloat(row.IMRP_Amount) };
+        // IMRP SP N covers clock hour (N-1):00–N:00 UTC on the settlement date.
+        // Elexon SP 1 = 23:00 prev day, SP 3 = 00:00 same day, SP K = 00:00 + (K-3)*30min.
+        // So IMRP SP N maps to Elexon SP 2N+1 & 2N+2 on the same date,
+        // except SP 24 (23:00–00:00) which maps to Elexon SP 1 & 2 on date+1.
+        if (sp <= 23) {
+          results[`${date}:${2 * sp + 1}`] = val;
+          results[`${date}:${2 * sp + 2}`] = val;
+        } else {
+          const next = addDays(date, 1);
+          results[`${next}:1`] = val;
+          results[`${next}:2`] = val;
+        }
+      }
+    }));
+    setStatus('imrp', total > 0 ? 'ok' : 'warn');
+  } catch (e) {
+    console.warn('IMRP error:', e);
+    setStatus('imrp', 'err');
+  }
+  return results;
+}
+
+// ─── Merge data ───────────────────────────────────────────────────────────────
+function mergeData(sysPrices, midpData, imrpData, dates) {
+  const allKeys = new Set([
+    ...Object.keys(sysPrices),
+    ...Object.keys(midpData),
+    ...Object.keys(imrpData),
+  ]);
+
+  // Only include keys within our requested dates
+  const dateSet = new Set(dates);
+
+  const rows = [];
+  for (const key of allKeys) {
+    const [date, periodStr] = key.split(':');
+    if (!dateSet.has(date)) continue;
+    const period = parseInt(periodStr, 10);
+    const sys  = sysPrices[key]  || {};
+    const midp = midpData[key]   || {};
+    const imrp = imrpData[key]   || {};
+    rows.push({
+      date,
+      period,
+      ts: periodTimestamp(date, period),
+      sell: sys.sell  ?? null,
+      buy:  sys.buy   ?? null,
+      midp: midp.midp ?? null,
+      imrp: imrp.imrp ?? null,
+    });
+  }
+
+  rows.sort((a, b) => a.ts - b.ts);
+  return rows;
+}
+
+// ─── Render chart ─────────────────────────────────────────────────────────────
+function renderChart(rows) {
+  const labels = rows.map(r => r.ts);
+
+  const datasets = SERIES.map(s => ({
+    label: s.label,
+    data: rows.map(r => ({ x: r.ts, y: r[s.key] })),
+    borderColor: s.color,
+    backgroundColor: s.color + '22',
+    borderWidth: 1.8,
+    pointRadius: rows.length <= 48 ? 2.5 : 0,
+    pointHoverRadius: 4,
+    stepped: true,
+    spanGaps: true,
+  }));
+
+  if (chartInstance) chartInstance.destroy();
+
+  const ctx = document.getElementById('priceChart').getContext('2d');
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a2035',
+          borderColor: '#2a3555',
+          borderWidth: 1,
+          titleColor: '#dce8ff',
+          bodyColor: '#6b80a8',
+          padding: 10,
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y;
+              if (v === null || v === undefined) return `${ctx.dataset.label}: —`;
+              return `${ctx.dataset.label}: £${v.toFixed(2)}/MWh`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          type: 'time',
+          time: { tooltipFormat: 'dd MMM HH:mm', displayFormats: { hour: 'dd MMM HH:mm', day: 'dd MMM' } },
+          grid: { color: '#1e2a44' },
+          ticks: { color: '#6b80a8', maxTicksLimit: 12 },
+        },
+        y: {
+          grid: { color: '#1e2a44' },
+          ticks: {
+            color: '#6b80a8',
+            callback: v => `£${v.toFixed(0)}`,
+          },
+        },
+      },
+    },
+  });
+
+  document.getElementById('chartEmpty').style.display = 'none';
+}
+
+// ─── Render stats ─────────────────────────────────────────────────────────────
+function renderStats(rows) {
+  const el = document.getElementById('statsRow');
+  el.innerHTML = '';
+  for (const s of SERIES) {
+    const vals = rows.map(r => r[s.key]).filter(v => v !== null && v !== undefined && !isNaN(v));
+    if (vals.length === 0) continue;
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const min = Math.min(...vals);
+    const max = Math.max(...vals);
+    const card = document.createElement('div');
+    card.className = 'stat-card';
+    card.innerHTML = `
+      <div class="stat-series" style="color:${s.color}">
+        <div class="stat-dot" style="background:${s.color}"></div>
+        ${s.label}
+      </div>
+      <div class="stat-values">
+        <div class="stat-item">
+          <div class="stat-label">Min</div>
+          <div class="stat-value" style="color:${s.color}">£${min.toFixed(2)}</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Avg</div>
+          <div class="stat-value" style="color:${s.color}">£${avg.toFixed(2)}</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Max</div>
+          <div class="stat-value" style="color:${s.color}">£${max.toFixed(2)}</div>
+        </div>
+      </div>`;
+    el.appendChild(card);
+  }
+}
+
+// ─── Render table ─────────────────────────────────────────────────────────────
+function fmtPrice(v, color) {
+  if (v === null || v === undefined || isNaN(v)) return `<td class="price-cell" style="color:var(--text-dim)">—</td>`;
+  return `<td class="price-cell" style="color:${color}">£${Number(v).toFixed(2)}</td>`;
+}
+
+function renderTable(rows) {
+  const tbody = document.getElementById('tableBody');
+  document.getElementById('tableCount').textContent = `${rows.length} periods`;
+
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state" style="padding:2.5rem"><div class="empty-icon">📭</div><div>No data for selected range</div></div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td class="td-date">${r.date}</td>
+      <td class="td-period">${String(r.period).padStart(2, '0')}</td>
+      <td class="td-time">${formatTime(r.ts)}</td>
+      ${fmtPrice(r.sell, '#f0a500')}
+      ${fmtPrice(r.midp, '#4a9eff')}
+      ${fmtPrice(r.imrp, '#b57bee')}
+    </tr>`).join('');
+}
+
+// ─── Toggle series ────────────────────────────────────────────────────────────
+function toggleSeries(idx) {
+  if (!chartInstance) return;
+  const meta = chartInstance.getDatasetMeta(idx);
+  meta.hidden = !meta.hidden;
+  chartInstance.update();
+  const item = document.querySelector(`.legend-item[data-idx="${idx}"]`);
+  item.classList.toggle('hidden', meta.hidden);
+}
+
+// ─── Main fetch ───────────────────────────────────────────────────────────────
+async function fetchAll() {
+  const fromDate = document.getElementById('dateFrom').value;
+  const toDate   = document.getElementById('dateTo').value;
+
+  if (!fromDate || !toDate) return;
+
+  const from = new Date(fromDate + 'T00:00:00Z');
+  const to   = new Date(toDate   + 'T00:00:00Z');
+
+  if (from > to) {
+    alert('From date must be before To date');
+    return;
+  }
+
+  const diffDays = (to - from) / 86400000;
+  if (diffDays > 14) {
+    alert('Maximum range is 14 days');
+    return;
+  }
+
+  const btn = document.getElementById('fetchBtn');
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+
+  // Reset status dots
+  ['sys', 'mid', 'imrp'].forEach(id => setStatus(id, 'loading'));
+
+  const dates = dateRange(fromDate, toDate);
+
+  const [sysPrices, midpData, imrpData] = await Promise.all([
+    fetchSystemPrices(dates),
+    fetchMarketIndex(dates),
+    fetchIMRP(fromDate, toDate),
+  ]);
+
+  const rows = mergeData(sysPrices, midpData, imrpData, dates);
+
+  if (rows.length > 0) {
+    renderChart(rows);
+    renderStats(rows);
+    renderTable(rows);
+  } else {
+    document.getElementById('chartEmpty').style.display = 'flex';
+    document.getElementById('statsRow').innerHTML = '';
+    document.getElementById('tableBody').innerHTML = `<tr><td colspan="7"><div class="empty-state" style="padding:2.5rem"><div class="empty-icon">📭</div><div>No data returned for selected range</div></div></td></tr>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Load prices';
+}
+
+// ─── Auto-load on first visit ─────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const toDate   = addDays(new Date().toISOString().slice(0, 10), -14);
+  const fromDate = addDays(toDate, -14);
+  document.getElementById('dateFrom').value = fromDate;
+  document.getElementById('dateTo').value   = toDate;
+  fetchAll();
+});
+</script>
+</body>
+</html>
