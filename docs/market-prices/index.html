@@ -381,10 +381,25 @@ const SERIES = [
 ];
 
 // ─── Period → UTC timestamp ──────────────────────────────────────────────────
+// SP1 starts at midnight Europe/London time on the settlement date.
+//   GMT days: midnight London = 00:00 UTC
+//   BST days: midnight London = 23:00 UTC on D-1
+// We detect which by checking what London hour corresponds to UTC midnight on D.
 function periodTimestamp(settlementDate, period) {
-  const d = new Date(settlementDate + 'T00:00:00Z');
-  d.setUTCDate(d.getUTCDate() - 1);
-  d.setUTCHours(23, 0, 0, 0);
+  const utcMidnight = new Date(settlementDate + 'T00:00:00Z');
+
+  // London hour at UTC midnight: 0 = GMT day, 1 = BST day
+  const londonHour = parseInt(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/London', hour: '2-digit', hour12: false,
+    }).formatToParts(utcMidnight).find(p => p.type === 'hour').value,
+    10
+  ) % 24;
+
+  // Shift back to London midnight in UTC
+  const d = new Date(utcMidnight);
+  if (londonHour > 0) d.setUTCHours(d.getUTCHours() - londonHour);
+
   d.setUTCMinutes(d.getUTCMinutes() + (period - 1) * 30);
   return d;
 }
@@ -409,6 +424,19 @@ function addDays(dateStr, n) {
   const d = new Date(dateStr + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0, 10);
+}
+
+// Format a timestamp in Europe/London time — handles BST/GMT automatically via IANA tz database
+function formatLondon(ts) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    day: '2-digit', month: 'short',
+    hour: '2-digit', minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(+ts));
+  const p = {};
+  for (const part of parts) p[part.type] = part.value;
+  return `${p.day} ${p.month} ${p.hour}:${p.minute}`;
 }
 
 function setStatus() {}
@@ -584,6 +612,7 @@ function renderChart(rows) {
           backgroundColor: '#1a2035', borderColor: '#2a3555', borderWidth: 1,
           titleColor: '#dce8ff', bodyColor: '#6b80a8', padding: 10,
           callbacks: {
+            title: items => items.length ? formatLondon(items[0].parsed.x) : '',
             label: ctx => {
               const v = ctx.parsed.y;
               return v == null ? `${ctx.dataset.label}: —` : `${ctx.dataset.label}: £${v.toFixed(2)}/MWh`;
@@ -594,8 +623,13 @@ function renderChart(rows) {
       scales: {
         x: {
           type: 'time',
-          time: { tooltipFormat: 'dd MMM HH:mm', displayFormats: { hour: 'dd MMM HH:mm', day: 'dd MMM' } },
+          time: { displayFormats: { hour: 'HH:mm', day: 'dd MMM' } },
           grid: { color: '#1e2a44' },
+          afterTickToLabelConversion(scale) {
+            scale.ticks.forEach(tick => {
+              tick.label = formatLondon(tick.value);
+            });
+          },
           ticks: { color: '#6b80a8', maxTicksLimit: 12 },
         },
         y: {
@@ -663,7 +697,7 @@ function showBOATooltip(e, d, side) {
     <div class="tt-row"><span class="tt-key">Side</span><span class="tt-val">${side}</span></div>
     <div class="tt-row"><span class="tt-key">Original price</span><span class="tt-val">£${Number(d.originalPrice).toFixed(2)}/MWh</span></div>
     <div class="tt-row"><span class="tt-key">Final price</span><span class="tt-val">£${Number(d.finalPrice).toFixed(2)}/MWh</span></div>
-    <div class="tt-row"><span class="tt-key">Volume</span><span class="tt-val">${Math.abs(d.volume).toFixed(3)} MWh</span></div>
+    <div class="tt-row"><span class="tt-key">Volume</span><span class="tt-val">${(Math.abs(d.volume) * 2).toFixed(3)} MW</span></div>
     <div class="tt-row"><span class="tt-key">Acceptance</span><span class="tt-val">${d.acceptanceId}</span></div>
     <div class="tt-fuel">
       <div class="tt-fuel-swatch" style="background:${fuelColour}"></div>
@@ -733,9 +767,10 @@ function renderBOAChart(bidData, offerData) {
       fill: '#dce8ff', 'font-size': '10', 'font-weight': '700',
       'font-family': 'sans-serif', 'letter-spacing': '1',
     }));
-    svg.appendChild(svgText(PL + barWidth + 8, barY + BAR_H / 2 + 4,
-      `${totalVol.toFixed(0)} MWh · ${data.length} entries`, {
+    svg.appendChild(svgText(VW - PR, barY - 8,
+      `${(totalVol * 2).toFixed(0)} MW · ${data.length} entries`, {
       fill: '#3d5080', 'font-size': '8.5', 'font-family': 'sans-serif',
+      'text-anchor': 'end',
     }));
 
     // Background track
