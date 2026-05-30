@@ -4,3 +4,4 @@
 - recreate Guitar Zero2Hero YouTube video format
 - BESS optimisation explorer modelling dispatch under uncertainty
 - Stochastic Process modelling calculator - design SDE and show paths
+- AI political compass: plot AI models/systems on a 2D grid with axes "hype level" and "danger level"
